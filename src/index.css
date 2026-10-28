@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #080406;
+    --bg-surface: #12070c;
+    --bg-elevated: #1e0b14;
+    --maroon-deep: #3b0914;
+    --maroon-rich: #5c0f20;
+    --maroon-bright: #8a1731;
+    --queen-pink: #f5b5c8;
+    --queen-pink-soft: #fde8ef;
+    --queen-pink-glow: rgba(245, 181, 200, 0.25);
+    --gold-film: #e6b87d;
+    --text-main: #faedf1;
+    --text-muted: #c4adb5;
+    --border-color: #38121d;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1, h2, h3, .font-cinematic {
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.03em;
+  }
+
+  .font-serif-cozy {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-mono-film {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Cozy vintage film grain & vignette overlay */
+.film-grain {
+  background-image: radial-gradient(rgba(245, 181, 200, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.cinema-vignette {
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.85);
+}
+
+.glow-queen-pink {
+  box-shadow: 0 0 25px rgba(245, 181, 200, 0.18);
+}
+
+.glow-maroon {
+  box-shadow: 0 0 30px rgba(138, 23, 49, 0.35);
+}
+
+.film-strip-border {
+  border-left: 3px dashed #5c0f20;
+  border-right: 3px dashed #5c0f20;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0609;
+}
+::-webkit-scrollbar-thumb {
+  background: #4a0f1b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7a182c;
+}

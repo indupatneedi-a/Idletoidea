@@ -1,0 +1,279 @@
+START OF PROMPT
+
+
+## 0. HOW YOU MUST WORK
+
+You are building a working, end-to-end web application prototype called UNLOCK for the hackathon problem statement "Unlock Underused Equipment and Spaces". Read this entire brief before writing code. It is long on purpose: it names what to build, where each feature is used, and the rules that must hold.
+- Build in the phases listed in section 21. Finish and test Phase 1 (the complete judge journey) before adding anything else.
+- A small, reliable, working flow beats many half-finished features. Never leave a button that does nothing. If something is not built, hide it or mark it clearly as 'Not in prototype'.
+- Everything simulated (payments, verification, notifications, seeded data, AI output) must carry a visible label saying so.
+- Do not invent real partner organisations, logos, statistics or integrations. All people and facilities are fictional.
+- When done, run through the acceptance checklist in section 20 and list anything still mocked, incomplete or insecure.
+
+## 1. PRODUCT OVERVIEW
+
+UNLOCK is a trusted shared-resource platform for makerspaces, innovation centres and similar institutions. Owners list underused equipment and spaces with clear eligibility and usage rules. Requesters (students from different colleges, independent inventors, startups, project teams) discover resources, check eligibility, request access, and follow the request to completion. Supervisors verify training and record condition. Administrators oversee owners, escalations and the audit log.
+
+It is NOT an ordinary booking calendar. Its value is the combination of: discovery, risk-based eligibility checks, human approval, conflict-safe booking, fair allocation (booking caps and an explainable waitlist), before-and-after condition records, incident handling with human review, and a complete auditable history.
+
+Scope decision: one institution for now (a fictional 'Demo Innovation Lab'), but every record carries organisationId and facilityId so more organisations can be added later.
+
+## 2. NON-NEGOTIABLE RULES
+- Pending is never shown as confirmed. A request becomes a confirmed booking only after all checks pass and, where required, an authorised human approves.
+- Safety and eligibility are prerequisites, never ranking factors. A user without completed required training never gets access.
+- Important decisions (restricted access, incident findings, damage responsibility, restrictions, penalties) are always made by an authorised person. AI never decides.
+- An incident report is an allegation until reviewed. Never assign blame automatically because someone was the last user.
+- No automatic financial penalties. Fees are simulated and labelled.
+- Permission checks and state transitions run inside a single service layer (section 8), never only in the UI. Hiding a button is not security.
+- Every important action is written to an append-only audit log with actor, role, time and reason.
+- Payment state is independent of booking or transfer state. Permanent transfers (giveaway, sale) never use temporary booking or return states.
+- Use only fictional data. Collect no real ID numbers, real payment details or sensitive documents.
+
+## 3. TECH STACK AND ARCHITECTURE (WHERE EACH PART IS USED)
+- Frontend: React with TypeScript, Tailwind CSS, a simple client-side router, lucide-react icons. Typed models and reusable components.
+- Data store (browser): all data lives in a local store persisted to localStorage (or IndexedDB) behind a repository interface, for example DataStore with get, list, create, update and transaction methods. The UI never touches storage directly.
+- Service layer (the 'API'): one module of functions (section 8) that every screen calls. It performs permission checks, validation, state transitions, overlap prevention, cap and waitlist logic, audit logging and notifications. This is where 'server-side' rules are enforced in the prototype.
+- Firebase-ready structure: keep the repository interface and typed collections (users, resources, requests, ...) so a Firebase implementation (Authentication, Firestore, Storage) can replace the local one later without changing screens. Do not require Firebase for the prototype to run.
+- Authentication: a Demo Role Switcher is the primary way in (section 5). Google sign-in is optional: show a 'Sign in with Google' button only if Firebase Authentication is configured; otherwise show it disabled with the text 'Available when Firebase is connected'. A new Google user always starts as a requester. Roles are assigned only by an administrator, never by the user.
+- Gemini AI (live): use the Gemini API through the official @google/genai SDK with the API key from the environment (GEMINI_API_KEY as provided by AI Studio; never hard-code or expose it in UI text). Use the current Flash-class Gemini model that AI Studio recommends. AI is used in exactly two places: (1) 'Find my match' resource recommendations on the discovery page, and (2) 'Summarise this incident' on the incident review screen. See section 12.
+- Photos and evidence: store small images as data URLs in the local store (limit size). Evidence is shown only to authorised roles.
+- Time: use a Demo Clock (section 5) instead of the real clock for reminders and overdue logic so judges can see those stages instantly.
+
+## 4. THEME AND DESIGN
+- Dark navy base with white text and restrained violet and blue accents. Suggested tokens: background #0B1226, surface #111A33, elevated surface #172245, border #26335C, primary violet #6D5DF6, secondary blue #3B82F6, text #F4F6FF, muted text #A9B2D0. Success green, warning amber, danger red for status only.
+- Clean, modern, accessible. Discovery is the home page priority. Large tap targets and a mobile-first responsive layout.
+- Status chips always show text plus an icon, never colour alone. Chip set: Available, Pending review, Waitlisted, Offered, Confirmed, Rejected, Cancelled, In use, Returned, Overdue, Maintenance, Restricted.
+- A persistent slim banner: 'Prototype with fictional demo data. Payments, verification, notifications and AI output are simulated or advisory.'
+- Helpful empty states, loading skeletons, clear validation and error messages. No fake partner logos.
+
+## 5. APP STRUCTURE AND NAVIGATION
+
+One single-page app with role-aware navigation, plus a Guided Judge Walkthrough panel.
+- Top bar: UNLOCK logo, search, Demo Role Switcher (dropdown of fictional users with role badges), notifications bell with unread count, Demo Clock chip, Walkthrough button.
+- Demo Role Switcher: switching changes the current user instantly and updates navigation, dashboards and permitted actions. Label it 'Demo role switcher (for judges)'.
+- Role-aware navigation. Visitor/Requester: Discover, My Requests, My Quizzes, Notifications. Owner: My Listings, Create Listing, Review Queue, Bookings, Incidents. Supervisor: Assigned Resources, Training Approvals, Handovers and Returns, Incident Queue. Admin: Overview, Owner Checks, Escalations, Audit Log.
+- Guided Judge Walkthrough panel: a collapsible side panel (bottom sheet on mobile) listing the 10 journey steps in section 16. Each step has a short instruction, a 'Switch to [role]' button, a 'Go to screen' button, and a tick that completes automatically when the matching event appears in the audit log. Include 'Reset demo data' and 'Skip to next step'.
+- Demo Clock controls (in the walkthrough panel and Admin): show current demo time, buttons 'Advance 1 hour' and 'Advance 1 day', and 'Jump to just after due time'. Advancing the clock triggers reminders, no-show and overdue checks.
+- Public discovery works without signing in (browse and view only). Requesting access requires picking a demo user or signing in.
+
+## 6. ROLES AND PERMISSIONS
+
+Enforce these in the service layer. Each service function receives the acting user and rejects with a clear reason if not allowed.
+- Requester: search and view public listings, take quizzes, request access, join or leave a waitlist, cancel own bookings, request extensions, view own requests and timeline, report incidents, respond to incidents that name them. Cannot approve own request, edit others' listings, see restricted evidence, or change roles.
+- Resource owner: create and edit own listings and policies, set blackout or maintenance slots, review requests for own resources, record check-out and return, report incidents, flag repeated problems, view own resource timelines. Cannot access unrelated private records. Self-registered owners are labelled 'Unverified owner' until an admin spot-checks them.
+- Equipment supervisor: acts only on assigned resources. Approve or reject training eligibility for high-risk resources, review requests, record check-out and return, receive and review incidents.
+- Platform administrator: manage roles and accounts, spot-check owners (self-registered, spot-checked, flagged, suspended), approve high-risk listings from unverified owners before they become bookable, handle escalations, view the full audit log, moderate listings. Sensitive admin actions are logged.
+- Evidence (photos, incident details) is visible only to the two parties involved, the assigned supervisor, the owner of the resource and admins. Other users see nothing.
+
+## 7. DATA MODEL (TYPED ENTITIES)
+
+Create TypeScript interfaces and a seed file for these. Include organisationId and facilityId where relevant.
+- User: id, displayName, email, role (requester, owner, supervisor, admin), organisationId, verificationLabel (Demo verified or Unverified), standing {lateReturns, noShows, lateCancellations, restrictedUntil}, createdAt.
+- OwnerVerification: ownerId, state (self-registered, spot-checked, flagged, suspended), checkedBy, checkedAt, note.
+- Resource: id, ownerId, facilityId, organisationId, title, resourceType (equipment or workspace), category, description, photos, location, status, priceMode (free or paid), transferMode (temporary or permanent), price, priceUnit, riskLevel (low, medium, high), trainingRequired, quizId, supervisedAccess, allowedUsers, safetyNotes, ppe, prohibitedUses, conditionSummary, accessories, collectionPoint, setupNotes, returnInstructions, approvalMode (auto-if-low-risk, owner-review, supervisor-review), highDemand, policies, availabilitySlots, assignedSupervisorIds, listingState (draft, pending-admin-check, active, paused).
+- Policies (per resource): bookingCap (default 2 for high-demand), waitlistOfferHours (default 24), pendingExpiryHours (default 48), minNoticeHours, cancellationNoticeHours, noShowMinutes (default 15), repeatedNoShowThreshold, simulatedCancellationFeePercent, graceMinutes for overdue, autoExtendEnabled, maxExtensionMinutes.
+- Slot: id, resourceId, start, end, state (available, held, confirmed, blocked), blockReason.
+- Quiz: id, resourceId, questions [{text, options, correctIndex}], passMark (80 percent), maxAttemptsPerDay (3). EligibilityRecord: id, userId, resourceId, quizScore, attempts, status (not started, passed, failed, awaiting supervisor, approved, rejected, expired), approvedBy, approvedAt, expiresAt (12 months).
+- Request: id, resourceId, requesterId, requestType (borrow, rent, giveaway, sale), slotId or transferTerms, status, eligibilitySnapshot, message, createdAt, decisionBy, decisionAt, decisionReasonCode, decisionNote, expiresAt.
+- WaitlistEntry: id, resourceId, slotId, userId, joinedAt, status (waiting, offered, accepted, expired, left), offerExpiresAt.
+- HandoverRecord: id, requestId, checkoutAt, checkoutBy, beforeCondition, beforePhotos, accessories, dueAt, returnedAt, returnedRecordedBy, returnCondition, returnPhotos, accessoriesReturned, issues.
+- ExtensionRequest: id, requestId, requestedMinutes, status, decidedBy, reasonCode.
+- PaymentDemo: id, requestId, amount, currency (INR), status (not-required, pending, marked-as-paid, cancelled, refunded-simulated), simulationLabel, updatedAt.
+- Incident: id, resourceId, requestId, reportedBy, description, evidenceRefs, status (open, awaiting response, under review, resolved), response, aiSummary {text, generatedAt, editedBy}, decision, decisionReason, resolvedBy, resolvedAt. Treated as an allegation until resolved.
+- Notification: id, recipientId, type, message, relatedRecordId, isDemo true, readAt, createdAt.
+- AuditLog (append-only): id, actorId, actorRole, action, entityType, entityId, reasonCode, summary, timestamp.
+- DecisionReason: code, text, ruleReference (the published rule shown to the user).
+
+## 8. SERVICE LAYER FUNCTIONS (ALL LOGIC LIVES HERE)
+
+Implement these as typed functions. Each checks the acting user's role and ownership, validates input, runs inside a transaction against the store, writes an audit log entry, and creates notifications.
+- searchResources(filters), getResource(id), createListing, updateListing, setAvailability, blockSlot, adminCheckListing.
+- startQuiz, submitQuiz (enforce max attempts per day), supervisorApproveEligibility, supervisorRejectEligibility, getEligibility(userId, resourceId) returning a per-requirement checklist.
+- submitRequest(resourceId, slotId, message): runs validation, eligibility, cap and overlap checks, then returns a request with status and reason code.
+- decideRequest(requestId, approve|reject|needMoreInfo, reasonCode, note): only owner or assigned supervisor. On approve, re-checks overlap and eligibility inside the transaction.
+- cancelBooking, joinWaitlist, leaveWaitlist, acceptWaitlistOffer, expireWaitlistOffers (called on clock tick), expirePendingRequests.
+- requestExtension, decideExtension (auto-extend only when rules allow).
+- recordCheckout, recordReturn, recordNoShow, markOverdue (called on clock tick), restrictUser, liftRestriction, reviewOverdueCase.
+- createIncident, respondToIncident, summariseIncident (calls Gemini), resolveIncident (human only), escalateIncident.
+- markPaymentState (simulated only), completePermanentTransfer (separate handover flow).
+- listNotifications, markNotificationRead, getTimeline(requestId), listAuditLog (admin), getMetrics, advanceDemoClock, resetDemoData.
+- Every function returns either a result or a typed error with a plain-language reason and a reasonCode. The UI shows the reason.
+
+## 9. STATE MACHINES
+- Temporary request/booking: draft -> pending-review -> confirmed -> in-use -> returned. Side exits: rejected, cancelled, expired, waitlisted -> offered -> confirmed, overdue (from in-use). Only valid transitions are allowed; reject anything else.
+- Auto-confirm path: pending-review -> confirmed immediately only when the resource is low risk AND the owner enabled auto-confirm AND eligibility, cap and overlap checks all pass.
+- Permanent transfer (giveaway or sale): requested -> owner-confirmed -> handover-recorded -> transfer-complete (or rejected or cancelled). Never uses in-use, returned or overdue.
+- Payment (separate): not-required, pending, marked-as-paid (requester claim, unverified), cancelled, refunded-simulated. Payment state never completes a booking by itself.
+- Waitlist: waiting -> offered (timed) -> accepted, or expired (offer passes to the next eligible person).
+- Incident: open -> awaiting-response -> under-review -> resolved (human decision with rationale). Serious or contested cases can be escalated to admin.
+- Owner verification: self-registered -> spot-checked, with flagged and suspended as side states.
+
+## 10. BUSINESS RULES
+
+10.1 Risk-based eligibility
+- Low risk: account check plus acknowledging rules; may auto-confirm if the owner enabled it.
+- Medium risk: safety quiz passed; owner policy decides whether review is needed.
+- High risk: quiz passed AND an authorised supervisor approves eligibility before any booking can be confirmed.
+- Eligibility is shown to the requester as a checklist with 'Met' or 'Not met' and what to do next. Approvals expire after 12 months or if safety requirements change. Label all verification 'Demo verified' or 'Simulated verification'.
+
+10.2 Fair allocation
+- Order of decisions: (1) eligibility and safety, (2) the user's active booking cap for that resource, (3) slot availability, (4) approval, otherwise (5) waitlist.
+- Cap: owner-set per resource; default 2 active (future or in-use) bookings per user for high-demand resources. The cap, waitlist rule and tie-breaker are published on the listing.
+- Waitlist: ordered by the timestamp the user became eligible and joined, tie-breaker is request id. One entry per user per resource. Spots are not transferable. A user at their cap cannot join. Leaving and rejoining goes to the back.
+- When a slot frees up, offer it to the first eligible waitlisted user for the offer window (default 24 hours); re-check eligibility and cap at offer time; if not accepted, pass to the next person without penalising the first.
+- Rules are never changed retroactively after seeing who requested. Changes apply to future requests only and are logged.
+- Every allocation decision is logged with the rule applied.
+
+10.3 Decision explanations (reason codes shown to the user)
+- APPROVED_ELIGIBLE, REJECTED_TRAINING_INCOMPLETE, REJECTED_SLOT_UNAVAILABLE, REJECTED_CAP_REACHED, REJECTED_MAINTENANCE, REJECTED_OWNER_DECLINED (owner note required), WAITLISTED_FIRST_ELIGIBLE (show position and the rule), NEEDS_MORE_INFO (question and deadline), EXPIRED_NO_REVIEW, RESTRICTED_OVERDUE.
+- Every approval, rejection and waitlist placement shows a plain-language reason and a link to the published rule used. The same record appears in the timeline and audit log.
+
+10.4 Conflicts and competing requests
+- Overlap prevention: the confirm step and the slot write happen in one transaction. Two confirmed bookings can never overlap on the same resource. Test this explicitly.
+- Competing pending requests for one slot: the first eligible request is reviewed first; others stay pending or move to the waitlist with an explanation. Approving one never silently rejects another.
+- If an owner blocks a slot after confirmation (maintenance or internal use): notify the affected user, offer alternative slots or resources, give priority on the next matching slot, and log the reason.
+- Pending requests expire after the owner-set time (default 48 hours) and the requester is notified.
+
+10.5 Cancellations and no-shows
+- Owner-defined per listing: cancellation notice period, simulated cancellation fee, no-show definition, consequence of repeated no-shows. Show these on the listing page and again on the booking confirmation.
+- Cancelling records timely or late, frees the slot, and offers it to the first eligible waitlisted user. Owner and waitlisted user are notified.
+- Owners or supervisors record no-shows. Repeated no-shows only raise a flag for review; nothing is penalised automatically. Emergencies and disputes go to human review and the user can add an explanation.
+
+10.6 Extensions
+- A requester asks before the booking ends. Allowed only if the next slot is free, nobody is waitlisted for it, and the user has no overdue items.
+- Auto-extend only for low-risk resources where the owner enabled it, once, up to the original length or maxExtensionMinutes. Otherwise the owner or supervisor decides with a reason.
+- If a waitlist exists the extension is refused with an explanation. A booking already overdue cannot be extended. Extra simulated charges are recorded separately.
+
+10.7 Overdue returns
+- Stage 1: reminder shortly before and at the due time. Stage 2: when not returned, mark Overdue and notify requester and owner. Stage 3: configurable grace period. Stage 4: after the grace period, temporarily restrict the user from new temporary bookings until the item is returned or an owner or supervisor reviews the case. Stage 5: resolution, restriction lifted, outcome logged.
+- Users can report an emergency or dispute the return record. Staff review exceptions. No automatic financial penalties. Every change is logged.
+
+10.8 Repeated-problem flags (rule-based, not AI)
+- Count late returns, no-shows, late cancellations and incidents naming the user. When an owner-set threshold is passed, show a flag in the owner or supervisor queue. A flag only prompts review and never restricts a user on its own.
+
+10.9 Permanent transfers and payments
+- Giveaway and sale have their own handover flow: request, owner confirms recipient, handover recorded, transfer complete. Record only a simulated payment state for sales.
+- Payment simulation is labelled everywhere: 'Simulation only. No real money is moved.' Show the separate payment status chip next to the booking status.
+
+## 11. SCREENS TO BUILD
+- Discovery home (public): hero search, 'Find my match' AI box, category chips (Equipment, Workspace), filters (availability, free or paid, temporary or permanent, risk or training required, location or facility), resource cards with status, price/transfer chip, risk chip and next available slot. Empty state when no results.
+- Resource detail: gallery, description, type, free/paid and temporary/permanent chips, condition summary, accessories, location, availability slot picker, safety notes, PPE, prohibited uses, eligibility checklist for the current user, published rules (cap, waitlist, cancellation, no-show, overdue, extension), owner label ('Unverified owner' or 'Demo verified'), and a primary 'Request access' button. Show why a button is disabled when it is.
+- Safety quiz screen: questions, score, pass or fail result, attempts left today. Eligibility status then updates.
+- Request form and confirmation: slot, message, rules acknowledgement, simulated payment state if paid, then a result screen that shows status, plain-language reason and next step. A pending request must say 'Pending review', never 'Confirmed'.
+- Requester dashboard: My Requests with status chips and next action, upcoming bookings, waitlist positions, overdue items, notifications, alternatives when unavailable.
+- Create or edit listing (owner): conditional fields by risk level; high risk shows required safety and supervision fields; policy settings; 'Fill with example' button for judges; preview. Listing by an unverified owner with high risk goes to 'Pending admin check'; other listings publish immediately with the 'Unverified owner' label.
+- Owner dashboard and review queue: my listings, availability calendar or slot grid with block controls, pending requests with eligibility snapshot, approve/reject/need-more-info with required reason code, confirmed bookings, overdue returns, incidents, repeated-problem flags.
+- Supervisor dashboard: assigned resources, training approvals queue, upcoming handovers, returns due, condition records, incident queue.
+- Check-out form (check-in for the user): timestamp, responsible staff, initial condition notes, accessories checklist, optional photos, due time. Return form: timestamp, final condition, accessories returned, photos, reported issues. Both show the before and after side by side.
+- Permanent transfer handover page: terms, recipient, owner confirmation, handover date, simulated payment status for sales, and mark complete only after steps are recorded.
+- Incident screens: report form (description, evidence upload), the allegation banner 'Unreviewed report. Not a finding.', response form for the named user, reviewer panel with AI summary (editable, labelled AI-generated), decision form with rationale and simulated resolution. Escalate to admin.
+- Transaction timeline (requester and owner both see it): every event with actor, role, time and reason: request, eligibility result, decision with reason, waitlist changes, payments (simulated), extensions, check-out with condition, reminders, return with condition, overdue, incidents, final outcome. Evidence thumbnails only for authorised roles.
+- Admin: overview metrics, owner spot-check queue, listing moderation, escalations, role management, audit log with filters and search.
+- Notifications page and bell dropdown (all labelled 'Demo notification').
+
+## 12. GEMINI AI FEATURES (EXACTLY TWO)
+
+12.1 'Find my match' (used on the Discovery page)
+- Input: a free-text project description plus optional budget, location and date needs.
+- Pre-filter in code first: only send resources that are active, within the budget, and where the user's eligibility status is not blocked, together with each resource's id, title, category, price, location, riskLevel and next availability. The AI can only rank options that already pass these checks and can never override eligibility, safety, availability or published allocation rules.
+- Ask Gemini to return strict JSON: an ordered array of {resourceId, reason} using only the supplied ids. Validate the JSON; discard unknown ids; show up to 3 results with the reason and an 'AI suggested' label. Always show the standard rules and eligibility checklist on the resource page.
+- Fallback: if the AI call fails or returns invalid JSON, run keyword and filter matching and show 'AI unavailable, showing keyword matches'.
+
+12.2 'Summarise this incident' (used on the Incident review screen)
+- Input: the report text, timeline events, condition records and any response, with names replaced by roles (Requester, Owner, Supervisor) and no emails or contact details.
+- Ask Gemini for neutral JSON: {reportedAllegations: [], verifiedFacts: [], missingInformation: [], timeline: []}. Facts may only come from system records (timestamps, condition records). Allegations come from the report text. The model must not invent missing details, must not state fault or liability, and must not suggest penalties.
+- Show the result in a panel labelled 'AI-generated summary. Advisory only.' The reviewer can edit it before saving. The decision form stays fully manual.
+- Fallback: if AI is unavailable, show the original report and records in full with 'Summary unavailable'.
+
+12.3 Guardrails
+- Never use AI for approvals, rejections, waitlist order, eligibility, penalties or damage responsibility. Never send personal contact data. Label all AI output. Handle errors, timeouts and rate limits gracefully.
+
+## 13. NOTIFICATIONS, AUDIT LOG AND TIMELINE
+- In-app notifications for: request received (owner/supervisor), approved, rejected, more information needed, waitlist position change and slot offer, booking and return reminders, cancellation, overdue and restriction, return recorded, incident opened or updated, extension decisions. Label 'Demo notification'. No real email is sent.
+- Audit log is append-only; there is no delete or edit function anywhere. The timeline view is a filtered view of the same events for one request.
+- Reminders, no-show checks, offer expiry, request expiry and overdue checks run whenever the Demo Clock advances, and also on app load.
+
+## 14. DASHBOARDS AND METRICS
+- Metrics (admin and owner): resources listed and currently available; requests submitted, confirmed, rejected, pending; waitlist count; overdue returns; open incidents; utilisation = confirmed booked hours divided by published available hours for scheduled resources, with the denominator stated. Label seeded numbers 'Sample data'.
+- Simple utilisation bar chart per resource (use recharts or simple SVG).
+
+## 15. SEED DATA (ALL FICTIONAL, LABELLED)
+
+Facility: 'Demo Innovation Lab (fictional)', organisation: 'Demo Institution (fictional)'. Generate slots relative to the current Demo Clock date so the data never goes stale.
+- Users: Aarav Rao (requester, student, no quizzes done), Meera Nair (requester, independent inventor, 3D-printer quiz passed), Kabir Shah (requester, startup member, holds a confirmed 3D-printer booking tomorrow 10:00), Dr. Rhea Kapoor (owner, Spot-checked, Demo verified), Sam Iyer (supervisor assigned to the 3D printer and laser cutter), Nisha Verma (administrator), and Dev Menon (self-registered owner, Unverified).
+- Resource 1: Demo 3D Printer (FDM). Equipment, free, temporary, one-hour slots 09:00 to 17:00 for the next 7 days, risk medium, highDemand true, bookingCap 2, quiz required, approvalMode supervisor-review. Safety notes: hot surfaces, ventilation, no unattended prints beyond booked time. Condition summary: good, nozzle recently replaced.
+- Resource 2: Demo Laser Cutter. Equipment, free, temporary, one-hour slots, risk high, quiz plus supervisor approval, supervised access true, PPE required (eye protection). One slot blocked for maintenance tomorrow 14:00 to show blocked state.
+- Resource 3: Project Bench Room. Workspace, paid at INR 150 per hour (fictional, simulated payment only), temporary, risk low, approvalMode auto-if-low-risk with auto-confirm enabled, cancellation notice 24 hours with 20 percent simulated fee, extension auto-allowed when next slot is free.
+- Resource 4: Hand Tool Set (screwdrivers and pliers). Free, permanent giveaway, owner confirms the recipient.
+- Resource 5: Surplus Digital Oscilloscope. Paid at INR 4500 (fictional), permanent sale, simulated payment state, handover required.
+- Quiz data: write 5 multiple-choice safety questions for the 3D printer and 5 for the laser cutter, pass mark 80 percent. Example: 'What should you do if a print fails and the nozzle is hot?' with the correct answer 'Wait for it to cool or use heat-safe tools, never touch it bare-handed'.
+- Pre-seeded history: one completed past booking (Meera, 3D printer) with check-out and return records, and one open incident on it (the owner alleges a bent build plate, with the before and after condition notes and photos placeholders) in 'awaiting response' state so the incident flow and AI summary can be demonstrated immediately.
+- Pre-seeded waitlist: Meera is waiting on Kabir's 10:00 slot (so cancelling it demonstrates the first-eligible offer).
+
+## 16. THE JUDGE JOURNEY (MUST WORK END TO END WITHOUT HELP)
+
+A judge must be able to complete this full lifecycle alone, guided by the walkthrough panel. Build each step so it works with the seeded data or with data the judge creates.
+- Step 1, owner lists a resource: switch to Dr. Rhea Kapoor or Dev Menon, open Create Listing, click 'Fill with example', adjust conditions and rules, publish (or send for admin check if high risk by an unverified owner).
+- Step 2, user discovers the resource and checks eligibility: switch to Aarav, find the resource (also try 'Find my match'), open details, see the eligibility checklist, take the safety quiz.
+- Step 3, submit a booking request: pick a slot and submit. Show the result with status and reason.
+- Step 4, the system verifies requirements: show the visible verification results (eligibility, cap, overlap, policy acknowledgements) on the request.
+- Step 5, owner or manager reviews: switch to Sam Iyer or Dr. Kapoor, open the review queue, see the eligibility snapshot and decide.
+- Step 6, approved, rejected or waitlisted: show every outcome with a plain-language reason. Include a second requester so the waitlist path can be shown.
+- Step 7, check-in with initial condition: record the before condition, accessories and optional photo.
+- Step 8, return with final condition: record the after condition and return.
+- Step 9, delay, damage or conflict handled: use the Demo Clock to trigger the overdue stages; open an incident, respond as the user, run the AI summary, and resolve as a human reviewer.
+- Step 10, both parties view the full history: open the transaction timeline as requester and as owner and confirm both see the same decisions and events, with evidence only for authorised roles.
+
+## 17. PRIVACY, SECURITY AND ACCESSIBILITY
+- Data minimisation: store only what the workflow needs. No real IDs, payments or sensitive documents. Evidence and incident records have a stated retention note: kept only as long as needed, then deleted or anonymised.
+- All permission checks live in the service layer; a user cannot change their own role or open another person's request by editing client state. Add tests or self-checks for this.
+- Do not claim production-grade security. In the README state that the local store is a prototype and describe how Firebase security rules would enforce the same rules.
+- Accessibility: full keyboard navigation with visible focus, labels on all fields, contrast that meets WCAG AA, status never by colour alone, alt text on images, plain language, mobile-first layout, large tap targets, helpful empty, loading and error states.
+
+## 18. SIMULATION LABELS (MUST APPEAR IN THE UI)
+- 'Simulation only. No real money is moved.' near any payment state or fee.
+- 'Demo verified' or 'Simulated verification' on verification badges.
+- 'Demo notification' on notifications.
+- 'Sample data' on seeded metrics and resources.
+- 'AI-generated. Advisory only.' on AI output.
+
+## 19. WHAT NOT TO DO
+- Do not add real payments, real email or real identity checks. Do not build features outside this brief before the journey works. Do not leave placeholder buttons. Do not let AI decide anything. Do not auto-penalise users. Do not hard-code the Gemini API key.
+
+## 20. ACCEPTANCE CHECKLIST (RUN THIS BEFORE FINISHING)
+- Visitors can search and filter without signing in. Listings clearly show equipment or workspace, free or paid, temporary or permanent.
+- Required safety and eligibility fields appear according to risk. Quiz and supervisor approval gate access exactly as specified.
+- Pending is never shown as confirmed. Restricted resources cannot auto-confirm without authorised review.
+- Overlapping confirmed bookings are impossible, even when two requests are approved quickly in sequence.
+- The booking cap and first-eligible waitlist work, with logged decisions and plain-language reasons for approvals, rejections and waitlisting.
+- Cancellation, extension and overdue rules follow the owner's published policy. Overdue leads to reminder, flag, grace period and only then a restriction pending human review.
+- Permanent transfers use a handover flow, not temporary return states. Payment state is separate from booking state.
+- Condition records and incident evidence are visible only to authorised roles. Incidents never assign liability without review.
+- Both Gemini features work, are labelled, can fail gracefully, and never decide anything.
+- The timeline shows the complete history to both parties. The audit log is append-only.
+- The walkthrough panel completes the 10-step journey; Reset demo data works; the Demo Clock triggers reminders and overdue.
+- The main flow works on a mobile viewport. All simulations are labelled.
+
+## 21. BUILD ORDER
+- Phase 1: app shell, theme, role switcher, store and service layer, seed data, discovery, resource detail, quiz, request, review, status with reasons, check-out, return, timeline. Test the full journey.
+- Phase 2: waitlist and caps, cancellations, extensions, conflict handling, notifications, dashboards.
+- Phase 3: incidents with human review, overdue stages with the Demo Clock, repeated-problem flags, admin audit and owner spot-checks, permanent transfer handover, simulated payments.
+- Phase 4: Gemini 'Find my match' and 'Summarise this incident' with fallbacks, optional Firebase-ready sign-in button.
+- Phase 5: polish, accessibility pass, mobile pass, empty and error states, README with setup, demo flow, limitations and the test checklist.
+
+## 22. DELIVERABLES
+- A running app that passes section 20. A README with: problem statement, features, architecture (store, service layer, Gemini), setup (including the Gemini key), the 10-step demo journey, seeded accounts, known limitations, simulated features, and how to move to Firebase.
+- At the end, reply with a short list of anything still mocked, incomplete or insecure.
+
+END OF PROMPT
+
+FOLLOW-UP PROMPTS (use one at a time)
+1. Audit the service layer for role-permission bugs, especially review actions and access to incident evidence, and fix them.
+2. Write self-checks that prove two confirmed bookings cannot overlap and that a user at their cap cannot join a waitlist.
+3. Make every listing field visible with readable labels and clear safety information on the resource detail page.
+4. Make requester and owner dashboards show consistent status from the same request data.
+5. Add the staged overdue workflow driven by the Demo Clock, with reminder, flag, grace period and reviewed restriction.
+6. Add the permanent giveaway and sale handover flow without reusing temporary booking states.
+7. Make the Gemini features fail gracefully and always show the fallback when the API call errors.
+8. Run the acceptance checklist and list anything still mocked, insecure or incomplete.
+9. Improve mobile layout, loading, empty and error states and accessibility without removing functionality.
